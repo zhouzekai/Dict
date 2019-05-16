@@ -6,4 +6,8 @@
     <string name="nav_header_subtitle">android.studio@android.com</string>
     <string name="nav_header_desc">Navigation header</string>
     <string name="action_sync">同步到扇贝单词</string>
+    <string name="dict_tile_name">查词</string>
+    <string name="database_path">Android-Dev</string>
+    <string name="database_name">ecdict.db</string>
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
