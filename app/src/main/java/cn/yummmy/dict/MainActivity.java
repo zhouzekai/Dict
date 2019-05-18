@@ -1,15 +1,22 @@
 package cn.yummmy.dict;
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.os.Build;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
+import android.os.Environment;
+import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -19,18 +26,32 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import com.nightonke.jellytogglebutton.JellyToggleButton;
-import com.nightonke.jellytogglebutton.State;
+import com.loopj.android.http.AsyncHttpClient;
+import com.loopj.android.http.AsyncHttpResponseHandler;
+import com.loopj.android.http.PersistentCookieStore;
 
+import org.json.JSONObject;
+
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+
+import cz.msebera.android.httpclient.Header;
+import cz.msebera.android.httpclient.cookie.Cookie;
+import cz.msebera.android.httpclient.entity.StringEntity;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
     private List<Fragment> fragments;
     private int prePos;
+    private SharedPreferences sharedPreferences;
+    private SQLiteDatabase database;
 
     // Constant
     private static final String[] TAGS = {"home", "words", "about"};
@@ -43,6 +64,8 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        requestPermission();
+
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
@@ -75,7 +98,11 @@ public class MainActivity extends AppCompatActivity
         }
         setDefaultFragment(prePos);
 
-        requestPermission();
+        sharedPreferences = getSharedPreferences("account_info", 0);
+        File wordsDatabase = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
+                + "/" + getResources().getString(R.string.database_path)
+                + "/" + getResources().getString(R.string.words_name));
+        database = SQLiteDatabase.openOrCreateDatabase(wordsDatabase, null);
     }
 
     @Override
@@ -104,6 +131,34 @@ public class MainActivity extends AppCompatActivity
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_sync) {
+            LayoutInflater factory = LayoutInflater.from(this);
+            final View textEntryView = factory.inflate(R.layout.dialog_account, null);
+            final EditText input1 = (EditText) textEntryView.findViewById(R.id.account);
+            final EditText input2 = (EditText) textEntryView.findViewById(R.id.password);
+            final String account = sharedPreferences.getString("account", "");
+            final String password = input2.getText().toString();
+            if(account != "") {
+                input1.setText(account);
+            }
+            final AlertDialog.Builder alert = new AlertDialog.Builder(this);
+            alert.setTitle("扇贝账号").setView(textEntryView).setPositiveButton("Save",
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog,
+                                            int whichButton) {
+                            SharedPreferences.Editor editor = sharedPreferences.edit();
+                            editor.putString("account", input1.getText().toString());
+                            editor.commit();
+
+                            // Login to get Cookie
+                            loginShanbay(account, password);
+                        }
+                    }).setNegativeButton("Cancel",
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog,
+                                            int whichButton) {}
+                    });
+            alert.show();
+
             return true;
         }
 
@@ -163,11 +218,64 @@ public class MainActivity extends AppCompatActivity
         if (!(ContextCompat.checkSelfPermission(getBaseContext(), Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) ||
                 !(ContextCompat.checkSelfPermission(getBaseContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)) {
             ActivityCompat.requestPermissions(this, new String[]{
-                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.READ_EXTERNAL_STORAGE
+                    },
+                    0);
+            ActivityCompat.requestPermissions(this, new String[]{
                             Manifest.permission.WRITE_EXTERNAL_STORAGE
                     },
                     0);
         }
     }
 
+    private void loginShanbay(String account, String password) {
+        AsyncHttpClient client = new AsyncHttpClient();
+        final PersistentCookieStore cookieStore = new PersistentCookieStore(getApplicationContext());
+        client.setCookieStore(cookieStore);
+        String url = "https://apiv3.shanbay.com/bayuser/login";
+        client.addHeader("Accept", "application/json");
+        client.addHeader("Content-Type", "application/json");
+        client.addHeader("Origin", "https://web.shanbay.com");
+        client.addHeader("Referer", "https://web.shanbay.com/web/account/login");
+        client.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36");
+        client.addHeader("X-CSRFToken", "Ww7i7eT0N9YmGqGOe9iSxB15esWldzV1");
+        String json = "{\"account\":\"" + account + "\",\"password\":\""
+                + password + "\",\"code_2fa\":\"\"}";
+        try {
+            StringEntity entity = new StringEntity(json);
+            client.post(getApplicationContext(), url, entity, "application/json", new AsyncHttpResponseHandler() {
+                @Override
+                public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                    try {
+                        String json = new String(responseBody, "utf-8");
+                        JSONObject jsonObject = new JSONObject(json);
+                        long user_id = jsonObject.getLong("id_int");
+                        List<Cookie> cookies = cookieStore.getCookies();
+                        for (Cookie cookie : cookies) {
+                            String name = cookie.getName();
+                            if (!name.equals("auth_token")) continue;
+                            Date expiryDate = cookie.getExpiryDate();
+                            String value = cookie.getValue();
+                            SharedPreferences.Editor editor = sharedPreferences.edit();
+                            editor.putLong("expiry", expiryDate.getTime());
+                            editor.putString("auth_token", value);
+                            editor.putLong("user_id", user_id);
+                            editor.commit();
+                        }
+                    }
+                    catch (Exception e) {
+
+                    }
+                }
+
+                @Override
+                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+
+                }
+            });
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }

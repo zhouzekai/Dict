@@ -82,11 +82,23 @@ public class HomeFragment extends Fragment {
             public void onPrimaryClipChanged() {
                 ClipData clipData = clipboardManager.getPrimaryClip();
                 ClipData.Item item = clipData.getItemAt(0);
-                String content = item.getText().toString();
-                myBinder.queryWord(content);
+                if (item != null && item.getText() != null) {
+                    String content = item.getText().toString();
+                    if (!content.equals("")) {
+                        myBinder.queryWord(content);
+                    }
+                }
             }
         };
 
         return view;
+    }
+
+    @Override
+    public void onDestroy() {
+        if (listenerInstalled) {
+            clipboardManager.removePrimaryClipChangedListener(listener);
+        }
+        super.onDestroy();
     }
 }

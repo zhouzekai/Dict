@@ -4,14 +4,17 @@ import android.app.AlertDialog;
 import android.app.Service;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -19,6 +22,8 @@ import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.util.List;
 
 import cz.msebera.android.httpclient.Header;
 import cz.msebera.android.httpclient.entity.StringEntity;
@@ -28,13 +33,20 @@ public class DictService extends Service {
     class DictBinder extends Binder {
         // Query a word, show in dialog, add to word list
         public void queryWord(String word) {
-            String content = searchWordSql(word);
-            showDialog(word, content);
+            if (lastWord == null || !word.equals(lastWord)) {
+                String content = searchWordSql(word);
+                showDialog(word, content);
+                lastWord = word;
+            }
         }
     }
 
     // Sql
     private SQLiteDatabase database;
+    private SQLiteDatabase wordsDatabase;
+
+    private String lastWord = null;
+    private String cookieData = "";
 
     public DictService() {
     }
@@ -46,12 +58,23 @@ public class DictService extends Service {
                 + "/" + getResources().getString(R.string.database_name));
         database = SQLiteDatabase.openOrCreateDatabase(file, null);
 
+        File file1 = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
+                + "/" + getResources().getString(R.string.database_path)
+                + "/" + getResources().getString(R.string.words_name));
+        wordsDatabase = SQLiteDatabase.openOrCreateDatabase(file1, null);
+        wordsDatabase.execSQL("create table if not exists words(" +
+                "id integer primary key autoincrement not null," +
+                "word char(50) not null," +
+                "sync int not null);");
+        getCookieData();
+
         return super.onStartCommand(intent, flags, startId);
     }
 
     @Override
     public void onDestroy() {
         database.close();
+        wordsDatabase.close();
         super.onDestroy();
     }
 
@@ -60,139 +83,34 @@ public class DictService extends Service {
         return new DictBinder();
     }
 
-    private void showDialog(String title, String message) {
+    private void showDialog(final String title, String message) {
 
-        if(!Settings.canDrawOverlays(this)){
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
-            intent.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                startActivity(intent);
+            }
         }
 
-        AlertDialog dialog = new AlertDialog.Builder(getApplicationContext()).setTitle(title)
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("add", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
+                        wordsDatabase.execSQL("insert into words (word, sync) values (?, ?)", new Object[]{title, 0});
+                        doOneSync(title);
                     }
                 })
                 .setNegativeButton("ok", new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                    }
+                    public void onClick(DialogInterface dialog, int which) {}
                 })
                 .create();
-        dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType((WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY));
+        }else {
+            dialog.getWindow().setType((WindowManager.LayoutParams.TYPE_SYSTEM_ALERT));
+        }
         dialog.show();
-    }
-
-    private void addWord(String wordId) {
-        try {
-            AsyncHttpClient client = new AsyncHttpClient();
-            client.addHeader(":authority", "www.shanbay.com");
-            client.addHeader(":method", "POST");
-            client.addHeader(":path", "/api/v1/bdc/learning/");
-            client.addHeader(":scheme", "https");
-            client.addHeader("accept", "application/json, text/javascript, */*; q=0.01");
-            client.addHeader("accept-encoding", "zh-CN,zh;q=0.9,zh-TW;q=0.8,en;q=0.7");
-            client.addHeader("content-type", "application/json");
-            client.addHeader("cookie", "csrftoken=DGojASqnaJGWNPfOEg0n1RPZbPzCaA5l; _ga=GA1.2.779543603.1557886651; locale=zh-cn; userid=60647236; __utmc=183787513; __utmz=183787513.1557886685.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); userid=60647236; language_code=zh-CN; __utma=183787513.779543603.1557886651.1557886685.1557893669.2; __utmt=1; auth_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6NjA2NDcyMzYsImV4cCI6MTU1ODc2MDY5MiwiZGV2aWNlIjoiIiwidXNlcm5hbWUiOiJ6emsyMzMiLCJpc19zdGFmZiI6MH0.2SnSmPKRPipuhwkVAV6Bs-ixqXw-G6V9b7Ga-SBs6og; __utmb=183787513.6.10.1557893669");
-            client.addHeader("origin", "https://www.shanbay.com");
-            client.addHeader("referer", "https://www.shanbay.com/bdc/review/");
-            client.addHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36");
-            client.addHeader("X-Requested-With", "XMLHttpRequest");
-
-            final String json = "{\"id\":" + wordId + ",\"content_type\":\"vocabulary\"}\n";
-            StringEntity entity = new StringEntity(json);
-            String url = "https://www.shanbay.com/api/v1/bdc/learning/";
-
-            client.post(getApplicationContext(), url, entity, "application/json", new AsyncHttpResponseHandler() {
-                @Override
-                public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-                    try {
-                        String body = new String(responseBody, "utf-8");
-                        JsonObject jsonObject = new JsonParser().parse(body).getAsJsonObject();
-                        System.out.println(jsonObject);
-                    }
-                    catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    finally {
-
-                    }
-                }
-
-                @Override
-                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-
-                }
-            });
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private String cookieData(String mAuthToken, String mUserId) {
-        String result = "";
-
-        String csrftoken = "csrftoken=DGojASqnaJGWNPfOEg0n1RPZbPzCaA5l; ";
-        String _ga = "_ga=GA1.2.779543603.1557886651; ";
-        String locale = "locale=zh-cn; ";
-        String userId = "userid=" + mUserId + "; ";
-        String __utmc = "__utmc=183787513; ";
-        String __utmz = "__utmz=183787513.1557886685.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); ";
-        String language_code = "language_code=zh-CN; ";
-        String __utma = "__utma=183787513.779543603.1557886651.1557886685.1557893669.2; ";
-        String __utmt = "__utmt=1; ";
-        String auth_token = "auth_token=" + mAuthToken;
-
-        result = csrftoken + _ga + locale + userId + __utmc + __utmz +
-                userId + language_code + __utma + __utmt + auth_token;
-
-        return result;
-    }
-
-    private void searchWordShanbay(final String word) {
-        AsyncHttpClient client = new AsyncHttpClient();
-        client.addHeader("Accept", "application/json, text/javascript, */*; q=0.01");
-        client.addHeader("Referer", "https://www.shanbay.com/");
-        client.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36");
-        client.addHeader("X-Requested-With", "XMLHttpRequest");
-        client.setTimeout(10000);
-
-        String url = "https://www.shanbay.com/api/v1/bdc/search/?word=" + word;
-
-        client.get(url, new AsyncHttpResponseHandler() {
-            @Override
-            public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-                try {
-                    String body = new String(responseBody, "utf-8");
-                    JsonObject jsonObject = new JsonParser().parse(body).getAsJsonObject();
-                    String msg = jsonObject.get("msg").getAsString();
-                    if(msg.equals("SUCCESS")) {
-                        int content_id = jsonObject.get("data").getAsJsonObject().
-                                get("content_id").getAsInt();
-                        String pron = jsonObject.get("data").getAsJsonObject().
-                                get("pronunciations").getAsJsonObject().
-                                get("uk").getAsString();
-                        String definition = jsonObject.get("data").getAsJsonObject().
-                                get("definition").getAsString();
-//                        myBinder.showDialog(word, "[" + pron + "]\n" + definition);
-                    }
-                    else {
-//                        myBinder.showDialog("Tips", "No such word!");
-                    }
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
-            @Override
-            public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-//                myBinder.showDialog("Tips", "Check network");
-            }
-        });
     }
 
     private String searchWordSql(String word) {
@@ -205,6 +123,57 @@ public class DictService extends Service {
         }
         else {
             return "";
+        }
+    }
+
+    private void getCookieData() {
+        SharedPreferences sharedPreferences = getSharedPreferences("account_info", 0);
+        String mAuthToken = sharedPreferences.getString("auth_token", "");
+        Long mUserId = sharedPreferences.getLong("user_id", 0);
+
+        String csrftoken = "csrftoken=DGojASqnaJGWNPfOEg0n1RPZbPzCaA5l; ";
+        String _ga = "_ga=GA1.2.779543603.1557886651; ";
+        String __utmz = "__utmz=183787513.1558059702.5.2.utmcsr=web.shanbay.com|utmccn=(referral)|utmcmd=referral|utmcct=/web/account/login; ";
+        String userId = "userid=" + mUserId.toString() + "; ";
+        String __utma = "__utma=183787513.779543603.1557886651.1557886685.1557893669.2; ";
+        String __utmc = "__utmc=183787513; ";
+        String auth_token = "auth_token=" + mAuthToken;
+
+        String __utmt = "__utmt=1; ";
+        String __utmb = "__utmb=183787513.1.10.1558075417";
+
+        cookieData = csrftoken + _ga + __utmz + userId + __utma + __utmc + auth_token;
+    }
+
+    private void doOneSync(String word) {
+        String url = "https://www.shanbay.com/bdc/vocabulary/add/batch/?words=" + word;
+        String path = "/bdc/vocabulary/add/batch/?words=" + word;
+
+        AsyncHttpClient client = new AsyncHttpClient();
+        client.addHeader(":authority", "www.shanbay.com");
+        client.addHeader(":method", "GET");
+        client.addHeader(":path", path);
+        client.addHeader(":scheme", "https");
+        client.addHeader("accept", "application/json, text/javascript, */*; q=0.01");
+        client.addHeader("accept-encoding", "gzip, deflate, br");
+        client.addHeader("accept-language","zh-CN,zh;q=0.9,zh-TW;q=0.8,en;q=0.7");
+        client.addHeader("cookie", cookieData);
+        client.addHeader("Referer", "https://www.shanbay.com/bdc/vocabulary/add/batch/");
+        client.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36");
+        client.addHeader("x-requested-with", "XMLHttpRequest");
+        try {
+            client.get(this, url, new AsyncHttpResponseHandler() {
+                @Override
+                public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                    System.out.println("OK");
+                }
+
+                @Override
+                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {}
+            });
+        }
+        catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
