@@ -5,7 +5,6 @@ import android.app.Service;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Binder;
 import android.os.Build;
@@ -157,9 +156,7 @@ public class DictService extends Service {
                 }
 
                 @Override
-                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-                    System.out.println();
-                }
+                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {}
             });
         }
         catch (Exception e) {
