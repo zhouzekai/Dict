@@ -33,7 +33,7 @@ public class WordsFragment extends Fragment {
         database = SQLiteDatabase.openOrCreateDatabase(wordsDatabase, null);
 
         List<String> words = new ArrayList<>();
-        Cursor cursor = database.rawQuery("select * from words where sync = ?", new String[]{"0"});
+        Cursor cursor = database.rawQuery("select * from words where 1=1", null);
         boolean result = cursor.moveToFirst();
         while (result) {
             String word = cursor.getString(cursor.getColumnIndex("word"));

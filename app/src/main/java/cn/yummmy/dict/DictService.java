@@ -30,22 +30,16 @@ public class DictService extends Service {
         // Query a word, show in dialog, add to word list
         public void queryWord(String word) {
             if (!word.equals(lastWord)) {
-                String content = searchWordSql(word);
+                String content = dict.searchWordSql(word);
                 showDialog(word, content);
                 lastWord = word;
             }
         }
-
-        // Query a word, return a message
-        public String queryWordMessage(String word) {
-            return searchWordSql(word);
-        }
     }
 
     // Sql
-    private SQLiteDatabase database;
+    private ECDict dict;
     private SQLiteDatabase wordsDatabase;
-
     private String lastWord = null;
     private String cookieData = "";
 
@@ -54,10 +48,7 @@ public class DictService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        File file = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
-                + "/" + getResources().getString(R.string.database_path)
-                + "/" + getResources().getString(R.string.database_name));
-        database = SQLiteDatabase.openOrCreateDatabase(file, null);
+        dict = new ECDict(this);
 
         File file1 = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
                 + "/" + getResources().getString(R.string.database_path)
@@ -73,7 +64,6 @@ public class DictService extends Service {
 
     @Override
     public void onDestroy() {
-        database.close();
         wordsDatabase.close();
         super.onDestroy();
     }
@@ -111,19 +101,6 @@ public class DictService extends Service {
         }
         dialog.setCanceledOnTouchOutside(false);
         dialog.show();
-    }
-
-    private String searchWordSql(String word) {
-        Cursor cursor = database.rawQuery("select * from stardict where word = ?", new String[]{word});
-        boolean result = cursor.moveToFirst();
-        if (result) {
-            String translation = cursor.getString(cursor.getColumnIndex("translation"));
-            String pron = cursor.getString(cursor.getColumnIndex("phonetic"));
-            return "[" + pron + "]\n" + translation;
-        }
-        else {
-            return "";
-        }
     }
 
     private void getCookieData() {

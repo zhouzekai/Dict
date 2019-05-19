@@ -7,17 +7,21 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.TextView;
 
+import org.w3c.dom.Text;
+
 import java.util.List;
 
 public class WordsAdapter extends BaseAdapter {
     private List<String> data;
     private LayoutInflater layoutInflater;
     private Context context;
+    private ECDict dict;
 
     public WordsAdapter(Context context, List<String> data) {
         this.layoutInflater = LayoutInflater.from(context);
         this.context = context;
         this.data = data;
+        dict = new ECDict(context);
     }
 
     @Override
@@ -37,6 +41,7 @@ public class WordsAdapter extends BaseAdapter {
 
     private class Word {
         public TextView wordEntry;
+        public TextView wordMessage;
     }
 
     @Override
@@ -44,7 +49,9 @@ public class WordsAdapter extends BaseAdapter {
         convertView = layoutInflater.inflate(R.layout.item_word, null);
         Word item = new Word();
         item.wordEntry = convertView.findViewById(R.id.word_entry);
-        item.wordEntry.setText(data.get(position));
+        item.wordMessage = convertView.findViewById(R.id.word_message);
+        item.wordEntry.setText(data.get(position) + "\n");
+        item.wordMessage.setText(dict.searchWordSql(data.get(position)) + "\n");
         return convertView;
     }
 }
