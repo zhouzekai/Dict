@@ -7,37 +7,38 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.view.WindowManager;
-import android.widget.Toast;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.File;
-import java.io.FileWriter;
-import java.util.List;
 
 import cz.msebera.android.httpclient.Header;
-import cz.msebera.android.httpclient.entity.StringEntity;
 
 public class DictService extends Service {
 
     class DictBinder extends Binder {
         // Query a word, show in dialog, add to word list
         public void queryWord(String word) {
-            if (lastWord == null || !word.equals(lastWord)) {
+            if (!word.equals(lastWord)) {
                 String content = searchWordSql(word);
                 showDialog(word, content);
                 lastWord = word;
             }
+        }
+
+        // Query a word, return a message
+        public String queryWordMessage(String word) {
+            return searchWordSql(word);
         }
     }
 
@@ -64,8 +65,7 @@ public class DictService extends Service {
         wordsDatabase = SQLiteDatabase.openOrCreateDatabase(file1, null);
         wordsDatabase.execSQL("create table if not exists words(" +
                 "id integer primary key autoincrement not null," +
-                "word char(50) not null," +
-                "sync int not null);");
+                "word char(50) not null);");
         getCookieData();
 
         return super.onStartCommand(intent, flags, startId);
@@ -83,7 +83,7 @@ public class DictService extends Service {
         return new DictBinder();
     }
 
-    private void showDialog(final String title, String message) {
+    private void showDialog(final String title, final String message) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!Settings.canDrawOverlays(this)) {
@@ -96,7 +96,6 @@ public class DictService extends Service {
                 .setMessage(message)
                 .setPositiveButton("add", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
-                        wordsDatabase.execSQL("insert into words (word, sync) values (?, ?)", new Object[]{title, 0});
                         doOneSync(title);
                     }
                 })
@@ -110,6 +109,7 @@ public class DictService extends Service {
         }else {
             dialog.getWindow().setType((WindowManager.LayoutParams.TYPE_SYSTEM_ALERT));
         }
+        dialog.setCanceledOnTouchOutside(false);
         dialog.show();
     }
 
@@ -165,11 +165,24 @@ public class DictService extends Service {
             client.get(this, url, new AsyncHttpResponseHandler() {
                 @Override
                 public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
-                    System.out.println("OK");
+                    String json = new String(responseBody);
+                    try {
+                        JSONObject jsonObject = new JSONObject(json);
+                        JSONArray array = jsonObject.getJSONArray("notfound_words");
+                        if (array.length() >= 1) {
+                            String notFoundWord = (String) array.get(0);
+                            wordsDatabase.execSQL("insert into words (word) values (?)", new Object[]{notFoundWord});
+                        }
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
 
                 @Override
-                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {}
+                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+                    System.out.println();
+                }
             });
         }
         catch (Exception e) {

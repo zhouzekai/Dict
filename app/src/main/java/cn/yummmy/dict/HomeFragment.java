@@ -1,13 +1,18 @@
 package cn.yummmy.dict;
 
+import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -28,6 +33,7 @@ public class HomeFragment extends Fragment {
     private boolean listenerInstalled = false;
     private DictConn myConn;
     private DictService.DictBinder myBinder;
+    private SharedPreferences accountInfo;
 
     private class DictConn implements ServiceConnection {
 
@@ -47,8 +53,24 @@ public class HomeFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, null);
-
+        accountInfo = getActivity().getSharedPreferences("account_info", 0);
         jellyToggleButton = (JellyToggleButton) view.findViewById(R.id.jellyToggleButton);
+        jellyToggleButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Boolean haveLogin = accountInfo.getBoolean("have_login", false);
+                if (!haveLogin) {
+                    AlertDialog dialog = new AlertDialog.Builder(getActivity()).setTitle("Tips")
+                            .setMessage("请登录，否则无法进行同步\n拉开侧边栏，进入扇贝账号")
+                            .setNegativeButton("ok", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {}
+                            })
+                            .create();
+                    dialog.show();
+                }
+            }
+        });
         jellyToggleButton.setOnStateChangeListener(new JellyToggleButton.OnStateChangeListener() {
             @Override
             public void onStateChange(float process, State state, JellyToggleButton jtb) {
