@@ -28,24 +28,7 @@ import static android.content.Context.BIND_AUTO_CREATE;
 public class HomeFragment extends Fragment {
 
     private JellyToggleButton jellyToggleButton;
-    private ClipboardManager clipboardManager;
-    private ClipboardManager.OnPrimaryClipChangedListener listener;
-    private boolean listenerInstalled = false;
-    private DictConn myConn;
-    private DictService.DictBinder myBinder;
     private SharedPreferences accountInfo;
-
-    private class DictConn implements ServiceConnection {
-
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            myBinder = (DictService.DictBinder) service;
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-        }
-    }
 
     public HomeFragment() {}
 
@@ -75,52 +58,20 @@ public class HomeFragment extends Fragment {
             @Override
             public void onStateChange(float process, State state, JellyToggleButton jtb) {
                 if (state.equals(State.RIGHT_TO_LEFT)) {
-                    if (listenerInstalled) {
-                        listenerInstalled = false;
-                        clipboardManager.removePrimaryClipChangedListener(listener);
-                    }
+                    Intent intent = new Intent(getActivity(), DictService.class);
+                    getActivity().stopService(intent);
                 }
                 if (state.equals(State.LEFT_TO_RIGHT)) {
-                    if (!listenerInstalled) {
-                        listenerInstalled = true;
-                        clipboardManager.addPrimaryClipChangedListener(listener);
-                    }
+                    Intent intent = new Intent(getActivity(), DictService.class);
+                    getActivity().startService(intent);
                 }
             }
         });
-
-        // Start service
-        Intent startDictService = new Intent(getActivity(), DictService.class);
-        getActivity().startService(startDictService);
-        // Bind service
-        myConn = new DictConn();
-        Intent connectIntent = new Intent(getActivity(), DictService.class);
-        getActivity().bindService(connectIntent, myConn, BIND_AUTO_CREATE);
-        // Get ClipboardManager
-        clipboardManager = (ClipboardManager) getActivity().
-                getSystemService(Context.CLIPBOARD_SERVICE);
-        listener = new ClipboardManager.OnPrimaryClipChangedListener() {
-            @Override
-            public void onPrimaryClipChanged() {
-                ClipData clipData = clipboardManager.getPrimaryClip();
-                ClipData.Item item = clipData.getItemAt(0);
-                if (item != null && item.getText() != null) {
-                    String content = item.getText().toString();
-                    if (!content.equals("")) {
-                        myBinder.queryWord(content);
-                    }
-                }
-            }
-        };
-
         return view;
     }
 
     @Override
     public void onDestroy() {
-        if (listenerInstalled) {
-            clipboardManager.removePrimaryClipChangedListener(listener);
-        }
         super.onDestroy();
     }
 }

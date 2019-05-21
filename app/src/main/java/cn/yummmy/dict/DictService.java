@@ -2,11 +2,12 @@ package cn.yummmy.dict;
 
 import android.app.AlertDialog;
 import android.app.Service;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.sqlite.SQLiteDatabase;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
@@ -25,16 +26,9 @@ import cz.msebera.android.httpclient.Header;
 
 public class DictService extends Service {
 
-    class DictBinder extends Binder {
-        // Query a word, show in dialog, add to word list
-        public void queryWord(String word) {
-            if (!word.equals(lastWord)) {
-                String content = dict.searchWordSql(word);
-                showDialog(word, content);
-                lastWord = word;
-            }
-        }
-    }
+    // clipboard service
+    private ClipboardManager clipboardManager;
+    private ClipboardManager.OnPrimaryClipChangedListener listener;
 
     // Sql
     private ECDict dict;
@@ -49,6 +43,21 @@ public class DictService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         dict = new ECDict(this);
 
+        clipboardManager = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        listener = new ClipboardManager.OnPrimaryClipChangedListener() {
+            @Override
+            public void onPrimaryClipChanged() {
+                ClipData clipData = clipboardManager.getPrimaryClip();
+                ClipData.Item item = clipData.getItemAt(0);
+                if (item != null && item.getText() != null) {
+                    String content = item.getText().toString();
+                    if (!content.equals("")) {
+                        queryWord(content);
+                    }
+                }
+            }
+        };
+        clipboardManager.addPrimaryClipChangedListener(listener);
         File file1 = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
                 + "/" + getResources().getString(R.string.database_path)
                 + "/" + getResources().getString(R.string.words_name));
@@ -63,13 +72,14 @@ public class DictService extends Service {
 
     @Override
     public void onDestroy() {
+        clipboardManager.removePrimaryClipChangedListener(listener);
         wordsDatabase.close();
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        return new DictBinder();
+        return null;
     }
 
     private void showDialog(final String title, final String message) {
@@ -161,6 +171,14 @@ public class DictService extends Service {
         }
         catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private void queryWord(String word) {
+        if (!word.equals(lastWord)) {
+            String content = dict.searchWordSql(word);
+            showDialog(word, content);
+            lastWord = word;
         }
     }
 }
