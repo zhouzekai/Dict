@@ -20,7 +20,9 @@ import com.loopj.android.http.AsyncHttpResponseHandler;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -28,13 +30,29 @@ public class DictService extends Service {
 
     // clipboard service
     private ClipboardManager clipboardManager;
-    private ClipboardManager.OnPrimaryClipChangedListener listener;
+    private ClipboardManager.OnPrimaryClipChangedListener listener =
+            new ClipboardManager.OnPrimaryClipChangedListener() {
+                @Override
+                public void onPrimaryClipChanged() {
+                    ClipData clipData = clipboardManager.getPrimaryClip();
+                    ClipData.Item item = clipData.getItemAt(0);
+                    if (item != null && item.getText() != null) {
+                        String content = item.getText().toString();
+                        if (!content.equals("")) {
+                            queryWord(content);
+                        }
+                    }
+                }
+            };
 
     // Sql
     private ECDict dict;
     private SQLiteDatabase wordsDatabase;
     private String lastWord = null;
     private String cookieData = "";
+
+    // text file
+    private File textFile;
 
     public DictService() {
     }
@@ -44,28 +62,18 @@ public class DictService extends Service {
         dict = new ECDict(this);
 
         clipboardManager = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        listener = new ClipboardManager.OnPrimaryClipChangedListener() {
-            @Override
-            public void onPrimaryClipChanged() {
-                ClipData clipData = clipboardManager.getPrimaryClip();
-                ClipData.Item item = clipData.getItemAt(0);
-                if (item != null && item.getText() != null) {
-                    String content = item.getText().toString();
-                    if (!content.equals("")) {
-                        queryWord(content);
-                    }
-                }
-            }
-        };
         clipboardManager.addPrimaryClipChangedListener(listener);
-        File file1 = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
-                + "/" + getResources().getString(R.string.database_path)
-                + "/" + getResources().getString(R.string.words_name));
-        wordsDatabase = SQLiteDatabase.openOrCreateDatabase(file1, null);
-        wordsDatabase.execSQL("create table if not exists words(" +
-                "id integer primary key autoincrement not null," +
-                "word char(50) not null);");
-        getCookieData();
+        textFile = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
+        + "/" + getResources().getString(R.string.database_path)
+        + "/" + getResources().getString(R.string.words_file));
+//        File file1 = new File(Environment.getExternalStorageDirectory().getAbsolutePath()
+//                + "/" + getResources().getString(R.string.database_path)
+//                + "/" + getResources().getString(R.string.words_name));
+//        wordsDatabase = SQLiteDatabase.openOrCreateDatabase(file1, null);
+//        wordsDatabase.execSQL("create table if not exists words(" +
+//                "id integer primary key autoincrement not null," +
+//                "word char(50) not null);");
+//        getCookieData();
 
         return super.onStartCommand(intent, flags, startId);
     }
@@ -95,7 +103,15 @@ public class DictService extends Service {
                 .setMessage(message)
                 .setPositiveButton("add", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
-                        doOneSync(title);
+//                        doOneSync(title);
+                        try {
+                            BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(textFile, true));
+                            bufferedWriter.write(title + '\n');
+                            bufferedWriter.close();
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 })
                 .setNegativeButton("ok", new DialogInterface.OnClickListener() {

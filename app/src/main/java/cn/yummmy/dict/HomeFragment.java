@@ -24,6 +24,7 @@ import com.nightonke.jellytogglebutton.JellyToggleButton;
 import com.nightonke.jellytogglebutton.State;
 
 import static android.content.Context.BIND_AUTO_CREATE;
+import static android.content.Context.CLIPBOARD_SERVICE;
 
 public class HomeFragment extends Fragment {
 
