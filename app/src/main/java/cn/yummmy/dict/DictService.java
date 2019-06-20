@@ -53,6 +53,7 @@ public class DictService extends Service {
 
     // text file
     private File textFile;
+    private BufferedWriter bufferedWriter;
 
     public DictService() {
     }
@@ -75,13 +76,25 @@ public class DictService extends Service {
 //                "word char(50) not null);");
 //        getCookieData();
 
+        try {
+            bufferedWriter = new BufferedWriter(new FileWriter(textFile, true));
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
         return super.onStartCommand(intent, flags, startId);
     }
 
     @Override
     public void onDestroy() {
         clipboardManager.removePrimaryClipChangedListener(listener);
-        wordsDatabase.close();
+        try {
+            bufferedWriter.close();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
         super.onDestroy();
     }
 
@@ -105,9 +118,7 @@ public class DictService extends Service {
                     public void onClick(DialogInterface dialog, int id) {
 //                        doOneSync(title);
                         try {
-                            BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(textFile, true));
                             bufferedWriter.write(title + '\n');
-                            bufferedWriter.close();
                         }
                         catch (Exception e) {
                             e.printStackTrace();
