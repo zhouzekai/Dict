@@ -28,6 +28,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import cn.yummmy.dict.util.Scraper;
 import cz.msebera.android.httpclient.Header;
 import cz.msebera.android.httpclient.cookie.Cookie;
 import cz.msebera.android.httpclient.entity.StringEntity;
@@ -55,12 +57,11 @@ public class MainActivity extends AppCompatActivity
     private int prePos;
 
     // Constant
-    private static final String[] TAGS = {"home", "words", "account", "about"};
+    private static final String[] TAGS = {"home", "words", "about"};
     private static final String PRE = "PREPOS";
     private static final int HOME = 0;
     private static final int WORDS = 1;
-    private static final int ACCOUNT = 2;
-    private static final int ABOUT = 3;
+    private static final int ABOUT = 2;
     private static final int READ_WRITE_PERM = 2333;
 
     @Override
@@ -95,7 +96,6 @@ public class MainActivity extends AppCompatActivity
                 fragments = new ArrayList<>();
                 fragments.add(new HomeFragment());
                 fragments.add(new WordsFragment());
-                fragments.add(new AccountFragment());
                 fragments.add(new AboutFragment());
             }
             else {
@@ -103,16 +103,13 @@ public class MainActivity extends AppCompatActivity
                 fragments = new ArrayList<>();
                 HomeFragment homeFragment = (HomeFragment) getSupportFragmentManager().findFragmentByTag(TAGS[0]);
                 WordsFragment wordsFragment = (WordsFragment) getSupportFragmentManager().findFragmentByTag(TAGS[1]);
-                AccountFragment accountFragment = (AccountFragment) getSupportFragmentManager().findFragmentByTag(TAGS[2]);
-                AboutFragment aboutFragment = (AboutFragment) getSupportFragmentManager().findFragmentByTag(TAGS[3]);
+                AboutFragment aboutFragment = (AboutFragment) getSupportFragmentManager().findFragmentByTag(TAGS[2]);
                 fragments.add(homeFragment);
                 fragments.add(wordsFragment);
-                fragments.add(accountFragment);
                 fragments.add(aboutFragment);
             }
             setDefaultFragment(prePos);
         }
-
     }
 
     @Override
@@ -130,7 +127,6 @@ public class MainActivity extends AppCompatActivity
                 fragments = new ArrayList<>();
                 fragments.add(new HomeFragment());
                 fragments.add(new WordsFragment());
-                fragments.add(new AccountFragment());
                 fragments.add(new AboutFragment());
                 setDefaultFragment(HOME);
             }
@@ -178,8 +174,6 @@ public class MainActivity extends AppCompatActivity
             switchFragment(HOME);
         } else if (id == R.id.nav_words) {
             switchFragment(WORDS);
-        } else if (id == R.id.nav_account) {
-            switchFragment(ACCOUNT);
         } else if (id == R.id.nav_about) {
             switchFragment(ABOUT);
         }

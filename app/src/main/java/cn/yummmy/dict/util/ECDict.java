@@ -1,4 +1,4 @@
-package cn.yummmy.dict;
+package cn.yummmy.dict.util;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -6,6 +6,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.Environment;
 
 import java.io.File;
+
+import cn.yummmy.dict.R;
 
 public class ECDict {
 
@@ -34,4 +36,7 @@ public class ECDict {
         }
     }
 
+    public void closeLink() {
+        database.close();
+    }
 }

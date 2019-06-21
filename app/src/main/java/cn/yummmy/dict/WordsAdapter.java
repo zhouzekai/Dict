@@ -7,9 +7,9 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.TextView;
 
-import org.w3c.dom.Text;
-
 import java.util.List;
+
+import cn.yummmy.dict.util.ECDict;
 
 public class WordsAdapter extends BaseAdapter {
     private List<String> data;
