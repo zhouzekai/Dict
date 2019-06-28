@@ -50,7 +50,7 @@ public class Scraper {
             }
         }
         catch (Exception e) {
-            e.printStackTrace();
+            return null;
         }
         return englishWord;
     }

@@ -34,7 +34,8 @@ public class WordActivity extends AppCompatActivity {
         // create table if not exist
         String tableSql = "create table if not exists words(" +
                 "ID integer primary key autoincrement not null," +
-                "word varchar(30) not null" +
+                "word varchar(30) not null," +
+                "sync integer not null" +
                 ");";
         database.execSQL(tableSql);
 
@@ -49,7 +50,7 @@ public class WordActivity extends AppCompatActivity {
         findViewById(R.id.addButton).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String sql = "insert into words (word) values (\"" + text.toString() + "\");";
+                String sql = "insert into words (word, sync) values (\"" + text.toString() + "\" , 0);";
                 database.execSQL(sql);
                 database.close();
                 finish();
